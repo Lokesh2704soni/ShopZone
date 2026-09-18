@@ -8,283 +8,232 @@ function Checkout() {
   const {
     cart,
     cartTotal,
-    removeFromCart,
-    increaseQuantity,
-    decreaseQuantity,
     clearCart,
   } = useCart();
 
-  const [address, setAddress] = useState({
-    name: "",
-    mobile: "",
-    house: "",
-    area: "",
-    city: "Jaipur",
-    state: "Rajasthan",
-    pincode: "",
-  });
-
+  const [address, setAddress] = useState("");
   const [paymentMethod, setPaymentMethod] =
     useState("Cash on Delivery");
 
-  const handleChange = (e) => {
-    setAddress({
-      ...address,
-      [e.target.name]: e.target.value,
-    });
-  };
+  const [loading, setLoading] = useState(false);
 
-  const deliveryCharge = cartTotal >= 499 ? 0 : 40;
+  const deliveryCharge =
+    cartTotal >= 499 ? 0 : 40;
 
-  const finalTotal = cartTotal + deliveryCharge;
+  const finalTotal =
+    cartTotal + deliveryCharge;
 
-  const handlePlaceOrder = () => {
-    if (
-      !address.name ||
-      !address.mobile ||
-      !address.house ||
-      !address.area ||
-      !address.pincode
-    ) {
-      alert("Please fill all delivery details.");
+
+  // Place Order
+  const handlePlaceOrder = async () => {
+    const token =
+      localStorage.getItem("shopzoneToken");
+
+    if (!token) {
+      alert("Please login first.");
+      navigate("/login");
+      return;
+    }
+
+    if (!address.trim()) {
+      alert("Please enter your delivery address.");
       return;
     }
 
     if (cart.length === 0) {
       alert("Your cart is empty.");
-      navigate("/");
+      navigate("/cart");
       return;
     }
 
-    const newOrder = {
-      id: `SZ-${Date.now()}`,
-      date: new Date().toLocaleDateString("en-IN"),
-      total: finalTotal,
-      status: "Ordered",
-      paymentMethod: paymentMethod,
-      address: address,
-      items: cart,
-    };
+    try {
+      setLoading(true);
 
-    const existingOrders =
-      JSON.parse(
-        localStorage.getItem("shopzoneOrders")
-      ) || [];
+      const response = await fetch(
+        "http://localhost:5000/api/orders",
+        {
+          method: "POST",
 
-    localStorage.setItem(
-      "shopzoneOrders",
-      JSON.stringify([
-        newOrder,
-        ...existingOrders,
-      ])
-    );
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
 
-    clearCart();
+          body: JSON.stringify({
+            total: finalTotal,
 
-    alert("Order placed successfully! 🎉");
+            paymentMethod,
 
-    navigate("/orders");
+            address,
+
+            items: cart.map((item) => ({
+              productId: item.id,
+              title: item.title,
+              price: item.price,
+              image: item.image,
+              quantity: item.quantity,
+            })),
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(
+          data.message ||
+            "Unable to place order"
+        );
+        return;
+      }
+
+      // MongoDB order created successfully
+      await clearCart();
+
+      alert(
+        `Order placed successfully! 🎉\nOrder ID: ${data.order.orderId}`
+      );
+
+      navigate("/orders");
+    } catch (error) {
+      console.error(
+        "Place order error:",
+        error
+      );
+
+      alert(
+        "Unable to connect to server. Make sure backend is running."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
+
 
   if (cart.length === 0) {
     return (
-      <div className="empty-checkout">
-        <h1>Your cart is empty</h1>
+      <div className="empty-cart">
+        <h1>Your Cart is Empty</h1>
 
         <p>
-          Add some products before proceeding to checkout.
+          Add products before proceeding
+          to checkout.
         </p>
 
-        <button onClick={() => navigate("/")}>
+        <button
+          onClick={() => navigate("/")}
+        >
           Continue Shopping
         </button>
       </div>
     );
   }
 
+
   return (
     <div className="checkout-page">
 
-      <div className="checkout-header">
-        <h1>Checkout</h1>
-        <p>Complete your order securely</p>
-      </div>
+      <h1>Checkout</h1>
 
-      <div className="checkout-container">
 
-        {/* DELIVERY ADDRESS */}
+      <div className="checkout-layout">
 
+        {/* LEFT SIDE */}
         <div className="checkout-left">
 
-          <section className="checkout-box">
+          {/* Delivery Address */}
+          <div className="checkout-section">
 
             <h2>1. Delivery Address</h2>
 
-            <div className="address-grid">
+            <textarea
+              placeholder="Enter your complete delivery address"
+              value={address}
+              onChange={(e) =>
+                setAddress(e.target.value)
+              }
+              rows="5"
+            />
 
-              <input
-                type="text"
-                name="name"
-                placeholder="Full Name"
-                value={address.name}
-                onChange={handleChange}
-              />
+          </div>
 
-              <input
-                type="tel"
-                name="mobile"
-                placeholder="Mobile Number"
-                value={address.mobile}
-                onChange={handleChange}
-              />
 
-              <input
-                type="text"
-                name="house"
-                placeholder="House No. / Building"
-                value={address.house}
-                onChange={handleChange}
-              />
-
-              <input
-                type="text"
-                name="area"
-                placeholder="Area / Street"
-                value={address.area}
-                onChange={handleChange}
-              />
-
-              <input
-                type="text"
-                name="city"
-                placeholder="City"
-                value={address.city}
-                onChange={handleChange}
-              />
-
-              <input
-                type="text"
-                name="state"
-                placeholder="State"
-                value={address.state}
-                onChange={handleChange}
-              />
-
-              <input
-                type="text"
-                name="pincode"
-                placeholder="PIN Code"
-                value={address.pincode}
-                onChange={handleChange}
-              />
-
-            </div>
-
-          </section>
-
-          {/* PAYMENT METHOD */}
-
-          <section className="checkout-box">
+          {/* Payment */}
+          <div className="checkout-section">
 
             <h2>2. Payment Method</h2>
 
-            <div className="payment-options">
+            <label className="payment-option">
 
-              <label className="payment-option">
+              <input
+                type="radio"
+                value="Cash on Delivery"
+                checked={
+                  paymentMethod ===
+                  "Cash on Delivery"
+                }
+                onChange={(e) =>
+                  setPaymentMethod(
+                    e.target.value
+                  )
+                }
+              />
 
-                <input
-                  type="radio"
-                  name="payment"
-                  value="Cash on Delivery"
-                  checked={
-                    paymentMethod ===
-                    "Cash on Delivery"
-                  }
-                  onChange={(e) =>
-                    setPaymentMethod(
-                      e.target.value
-                    )
-                  }
-                />
+              Cash on Delivery
 
-                <div>
-                  <strong>
-                    Cash on Delivery
-                  </strong>
+            </label>
 
-                  <p>
-                    Pay when your order arrives.
-                  </p>
-                </div>
 
-              </label>
+            <label className="payment-option">
 
-              <label className="payment-option">
+              <input
+                type="radio"
+                value="UPI"
+                checked={
+                  paymentMethod === "UPI"
+                }
+                onChange={(e) =>
+                  setPaymentMethod(
+                    e.target.value
+                  )
+                }
+              />
 
-                <input
-                  type="radio"
-                  name="payment"
-                  value="UPI"
-                  checked={
-                    paymentMethod === "UPI"
-                  }
-                  onChange={(e) =>
-                    setPaymentMethod(
-                      e.target.value
-                    )
-                  }
-                />
+              UPI
 
-                <div>
-                  <strong>UPI</strong>
+            </label>
 
-                  <p>
-                    Pay using Google Pay,
-                    PhonePe or Paytm.
-                  </p>
-                </div>
 
-              </label>
+            <label className="payment-option">
 
-              <label className="payment-option">
+              <input
+                type="radio"
+                value="Credit/Debit Card"
+                checked={
+                  paymentMethod ===
+                  "Credit/Debit Card"
+                }
+                onChange={(e) =>
+                  setPaymentMethod(
+                    e.target.value
+                  )
+                }
+              />
 
-                <input
-                  type="radio"
-                  name="payment"
-                  value="Card"
-                  checked={
-                    paymentMethod === "Card"
-                  }
-                  onChange={(e) =>
-                    setPaymentMethod(
-                      e.target.value
-                    )
-                  }
-                />
+              Credit / Debit Card
 
-                <div>
-                  <strong>
-                    Credit / Debit Card
-                  </strong>
+            </label>
 
-                  <p>
-                    Secure card payment.
-                  </p>
-                </div>
+          </div>
 
-              </label>
 
-            </div>
+          {/* Review Items */}
+          <div className="checkout-section">
 
-          </section>
-
-          {/* REVIEW ITEMS */}
-
-          <section className="checkout-box">
-
-            <h2>3. Review Your Items</h2>
+            <h2>3. Review Items</h2>
 
             {cart.map((item) => (
+
               <div
                 className="checkout-item"
                 key={item.id}
@@ -295,66 +244,38 @@ function Checkout() {
                   alt={item.title}
                 />
 
-                <div className="checkout-item-info">
+                <div>
 
                   <h3>{item.title}</h3>
 
-                  <p className="checkout-price">
-                    ₹
-                    {item.price.toLocaleString(
-                      "en-IN"
-                    )}
+                  <p>
+                    Quantity:{" "}
+                    {item.quantity}
                   </p>
 
-                  <div className="checkout-quantity">
-
-                    <button
-                      onClick={() =>
-                        decreaseQuantity(
-                          item.id
-                        )
-                      }
-                    >
-                      −
-                    </button>
-
-                    <span>
-                      {item.quantity}
-                    </span>
-
-                    <button
-                      onClick={() =>
-                        increaseQuantity(
-                          item.id
-                        )
-                      }
-                    >
-                      +
-                    </button>
-
-                  </div>
-
-                  <button
-                    className="checkout-remove"
-                    onClick={() =>
-                      removeFromCart(item.id)
-                    }
-                  >
-                    Remove
-                  </button>
+                  <strong>
+                    ₹
+                    {(
+                      item.price *
+                      item.quantity
+                    ).toLocaleString(
+                      "en-IN"
+                    )}
+                  </strong>
 
                 </div>
 
               </div>
+
             ))}
 
-          </section>
+          </div>
 
         </div>
 
-        {/* ORDER SUMMARY */}
 
-        <aside className="checkout-summary">
+        {/* RIGHT SIDE */}
+        <div className="checkout-summary">
 
           <h2>Order Summary</h2>
 
@@ -371,23 +292,28 @@ function Checkout() {
 
           </div>
 
+
           <div className="summary-row">
 
             <span>Delivery</span>
 
             <span>
+
               {deliveryCharge === 0
                 ? "FREE"
                 : `₹${deliveryCharge}`}
+
             </span>
 
           </div>
 
+
           <hr />
+
 
           <div className="summary-total">
 
-            <span>Order Total</span>
+            <strong>Order Total</strong>
 
             <strong>
               ₹
@@ -398,18 +324,25 @@ function Checkout() {
 
           </div>
 
+
           <button
             className="place-order-btn"
             onClick={handlePlaceOrder}
+            disabled={loading}
           >
-            Place Your Order
+
+            {loading
+              ? "Placing Order..."
+              : "Place Your Order"}
+
           </button>
 
-          <p className="secure-text">
-            🔒 Safe and secure checkout
+
+          <p className="secure-payment">
+            🔒 Secure checkout
           </p>
 
-        </aside>
+        </div>
 
       </div>
 

@@ -2,23 +2,18 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 function Register() {
-
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
-
   const [email, setEmail] = useState("");
-
   const [password, setPassword] = useState("");
-
   const [confirmPassword, setConfirmPassword] =
     useState("");
 
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = (e) => {
-
+  const handleRegister = async (e) => {
     e.preventDefault();
-
 
     if (
       !name ||
@@ -26,26 +21,60 @@ function Register() {
       !password ||
       !confirmPassword
     ) {
-
       alert("Please fill all fields");
-
       return;
     }
 
+    if (password.length < 6) {
+      alert("Password must be at least 6 characters");
+      return;
+    }
 
     if (password !== confirmPassword) {
-
       alert("Passwords do not match");
-
       return;
     }
 
+    try {
+      setLoading(true);
 
-    alert("Account created successfully!");
+      const response = await fetch(
+        "http://localhost:5000/api/auth/register",
+        {
+          method: "POST",
 
-    navigate("/login");
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            name,
+            email,
+            password,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Registration failed");
+        return;
+      }
+
+      alert("Account created successfully! 🎉");
+
+      navigate("/login");
+    } catch (error) {
+      console.error("Registration error:", error);
+
+      alert(
+        "Unable to connect to server. Make sure backend is running."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
-
 
   return (
     <div className="auth-page">
@@ -59,9 +88,7 @@ function Register() {
           Shop<span>Zone</span>
         </Link>
 
-
         <h1>Create account</h1>
-
 
         <form onSubmit={handleRegister}>
 
@@ -76,7 +103,6 @@ function Register() {
             }
           />
 
-
           <label>Email</label>
 
           <input
@@ -88,7 +114,6 @@ function Register() {
             }
           />
 
-
           <label>Password</label>
 
           <input
@@ -99,7 +124,6 @@ function Register() {
               setPassword(e.target.value)
             }
           />
-
 
           <label>Re-enter password</label>
 
@@ -114,20 +138,22 @@ function Register() {
             }
           />
 
-
-          <button type="submit">
-            Create account
+          <button
+            type="submit"
+            disabled={loading}
+          >
+            {loading
+              ? "Creating account..."
+              : "Create account"}
           </button>
 
         </form>
-
 
         <p className="auth-help">
           By creating an account, you agree to
           ShopZone's Conditions of Use and
           Privacy Notice.
         </p>
-
 
         <div className="existing-account">
 

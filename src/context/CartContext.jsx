@@ -1,97 +1,317 @@
-import { createContext, useContext, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 const CartContext = createContext();
 
+const API_URL = "http://localhost:5000";
+
 export function CartProvider({ children }) {
-
   const [cart, setCart] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Add product
-  const addToCart = (product) => {
+  // Get token
+  const getToken = () => {
+    return localStorage.getItem("shopzoneToken");
+  };
 
-    setCart((currentCart) => {
 
-      const existingProduct = currentCart.find(
-        (item) => item.id === product.id
+  // Load cart from MongoDB
+  const loadCart = async () => {
+    const token = getToken();
+
+    if (!token) {
+      setCart([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/api/cart`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
 
-      if (existingProduct) {
+      const data = await response.json();
 
-        return currentCart.map((item) =>
-          item.id === product.id
-            ? {
-                ...item,
-                quantity: item.quantity + 1,
-              }
-            : item
-        );
-
+      if (!response.ok) {
+        console.error(data.message);
+        return;
       }
 
-      return [
-        ...currentCart,
+      setCart(
+        data.cart?.items?.map((item) => ({
+          id: item.productId,
+          title: item.title,
+          price: item.price,
+          image: item.image,
+          quantity: item.quantity,
+        })) || []
+      );
+    } catch (error) {
+      console.error(
+        "Load cart error:",
+        error
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  // Load cart when application starts
+  useEffect(() => {
+    loadCart();
+  }, []);
+
+
+  // Add product
+  const addToCart = async (product) => {
+    const token = getToken();
+
+    // User must login for database cart
+    if (!token) {
+      alert(
+        "Please login first to add products to your cart."
+      );
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/cart/add`,
         {
-          ...product,
-          quantity: 1,
-        },
-      ];
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            productId: product.id,
+            title: product.title,
+            price: product.price,
+            image: product.image,
+          }),
+        }
+      );
 
-    });
+      const data = await response.json();
 
+      if (!response.ok) {
+        alert(
+          data.message ||
+            "Unable to add product"
+        );
+        return;
+      }
+
+      setCart(
+        data.cart.items.map((item) => ({
+          id: item.productId,
+          title: item.title,
+          price: item.price,
+          image: item.image,
+          quantity: item.quantity,
+        }))
+      );
+    } catch (error) {
+      console.error(
+        "Add to cart error:",
+        error
+      );
+
+      alert(
+        "Unable to connect to server."
+      );
+    }
   };
 
 
   // Remove product
-  const removeFromCart = (id) => {
+  const removeFromCart = async (id) => {
+    const token = getToken();
 
-    setCart((currentCart) =>
-      currentCart.filter(
-        (item) => item.id !== id
-      )
-    );
+    if (!token) {
+      return;
+    }
 
+    try {
+      const response = await fetch(
+        `${API_URL}/api/cart/remove/${id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(
+          data.message ||
+            "Unable to remove product"
+        );
+        return;
+      }
+
+      setCart(
+        data.cart.items.map((item) => ({
+          id: item.productId,
+          title: item.title,
+          price: item.price,
+          image: item.image,
+          quantity: item.quantity,
+        }))
+      );
+    } catch (error) {
+      console.error(
+        "Remove cart error:",
+        error
+      );
+    }
   };
-
-  const clearCart = () => {
-  setCart([]);
-};
 
 
   // Increase quantity
-  const increaseQuantity = (id) => {
+  const increaseQuantity = async (id) => {
+    const token = getToken();
 
-    setCart((currentCart) =>
-      currentCart.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              quantity: item.quantity + 1,
-            }
-          : item
-      )
-    );
+    if (!token) {
+      return;
+    }
 
+    try {
+      const response = await fetch(
+        `${API_URL}/api/cart/increase/${id}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(
+          data.message ||
+            "Unable to increase quantity"
+        );
+        return;
+      }
+
+      setCart(
+        data.cart.items.map((item) => ({
+          id: item.productId,
+          title: item.title,
+          price: item.price,
+          image: item.image,
+          quantity: item.quantity,
+        }))
+      );
+    } catch (error) {
+      console.error(
+        "Increase quantity error:",
+        error
+      );
+    }
   };
 
 
   // Decrease quantity
-  const decreaseQuantity = (id) => {
+  const decreaseQuantity = async (id) => {
+    const token = getToken();
 
-    setCart((currentCart) =>
-      currentCart
-        .map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                quantity: item.quantity - 1,
-              }
-            : item
-        )
-        .filter(
-          (item) => item.quantity > 0
-        )
-    );
+    if (!token) {
+      return;
+    }
 
+    try {
+      const response = await fetch(
+        `${API_URL}/api/cart/decrease/${id}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(
+          data.message ||
+            "Unable to decrease quantity"
+        );
+        return;
+      }
+
+      setCart(
+        data.cart?.items?.map((item) => ({
+          id: item.productId,
+          title: item.title,
+          price: item.price,
+          image: item.image,
+          quantity: item.quantity,
+        })) || []
+      );
+    } catch (error) {
+      console.error(
+        "Decrease quantity error:",
+        error
+      );
+    }
+  };
+
+
+  // Clear cart
+  const clearCart = async () => {
+    const token = getToken();
+
+    if (!token) {
+      setCart([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/cart/clear`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error(data.message);
+        return;
+      }
+
+      setCart([]);
+    } catch (error) {
+      console.error(
+        "Clear cart error:",
+        error
+      );
+
+      setCart([]);
+    }
   };
 
 
@@ -106,24 +326,27 @@ export function CartProvider({ children }) {
   // Total price
   const cartTotal = cart.reduce(
     (total, item) =>
-      total + item.price * item.quantity,
+      total +
+      item.price * item.quantity,
     0
   );
 
 
   return (
     <CartContext.Provider
-  value={{
-    cart,
-    addToCart,
-    removeFromCart,
-    increaseQuantity,
-    decreaseQuantity,
-    cartCount,
-    cartTotal,
-    clearCart,
-  }}
->
+      value={{
+        cart,
+        loading,
+        addToCart,
+        removeFromCart,
+        increaseQuantity,
+        decreaseQuantity,
+        clearCart,
+        cartCount,
+        cartTotal,
+        loadCart,
+      }}
+    >
       {children}
     </CartContext.Provider>
   );

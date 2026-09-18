@@ -2,14 +2,14 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 function Login() {
-
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = (e) => {
+  const [loading, setLoading] = useState(false);
 
+  const handleLogin = async (e) => {
     e.preventDefault();
 
     if (!email || !password) {
@@ -17,11 +17,54 @@ function Login() {
       return;
     }
 
-    alert("Login successful!");
+    try {
+      setLoading(true);
 
-    navigate("/");
+      const response = await fetch(
+        "http://localhost:5000/api/auth/login",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            email,
+            password,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Login failed");
+        return;
+      }
+
+      localStorage.setItem(
+        "shopzoneUser",
+        JSON.stringify(data.user)
+      );
+      localStorage.setItem(
+  "shopzoneToken",
+  data.token
+);
+
+      alert("Login successful! 🎉");
+
+      navigate("/");
+    } catch (error) {
+      console.error("Login error:", error);
+
+      alert(
+        "Unable to connect to server. Make sure backend is running."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
-
 
   return (
     <div className="auth-page">
@@ -47,7 +90,6 @@ function Login() {
             }
           />
 
-
           <label>Password</label>
 
           <input
@@ -59,24 +101,25 @@ function Login() {
             }
           />
 
-
-          <button type="submit">
-            Sign in
+          <button
+            type="submit"
+            disabled={loading}
+          >
+            {loading
+              ? "Signing in..."
+              : "Sign in"}
           </button>
 
         </form>
-
 
         <p className="auth-help">
           By continuing, you agree to ShopZone's
           Conditions of Use and Privacy Notice.
         </p>
 
-
         <div className="auth-divider">
           New to ShopZone?
         </div>
-
 
         <Link
           to="/register"
