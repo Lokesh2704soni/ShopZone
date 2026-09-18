@@ -6,11 +6,10 @@ function Orders() {
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState(null);
 
   const token = localStorage.getItem("shopzoneToken");
 
-
-  // Fetch orders from MongoDB
   const fetchOrders = async () => {
     if (!token) {
       setLoading(false);
@@ -30,34 +29,72 @@ function Orders() {
       const data = await response.json();
 
       if (!response.ok) {
-        alert(
-          data.message || "Unable to load orders"
-        );
+        alert(data.message || "Unable to load orders");
         return;
       }
 
       setOrders(data.orders || []);
     } catch (error) {
-      console.error(
-        "Fetch orders error:",
-        error
-      );
-
-      alert(
-        "Unable to connect to server."
-      );
+      console.error("Fetch orders error:", error);
+      alert("Unable to connect to server.");
     } finally {
       setLoading(false);
     }
   };
 
-
   useEffect(() => {
     fetchOrders();
   }, []);
 
+  const handleCancelOrder = async (orderId) => {
+    const confirmCancel = window.confirm(
+      "Are you sure you want to cancel this order?"
+    );
 
-  // Not logged in
+    if (!confirmCancel) {
+      return;
+    }
+
+    try {
+      setCancellingId(orderId);
+
+      const response = await fetch(
+        `https://shopzone-wn90.onrender.com/api/orders/cancel/${orderId}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Unable to cancel order");
+        return;
+      }
+
+      setOrders((previousOrders) =>
+        previousOrders.map((order) =>
+          order.orderId === orderId
+            ? {
+                ...order,
+                status: "Cancelled",
+              }
+            : order
+        )
+      );
+
+      alert("Order cancelled successfully.");
+    } catch (error) {
+      console.error("Cancel order error:", error);
+      alert("Unable to connect to server.");
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   if (!token) {
     return (
       <div className="empty-cart">
@@ -76,8 +113,6 @@ function Orders() {
     );
   }
 
-
-  // Loading
   if (loading) {
     return (
       <div className="empty-cart">
@@ -87,8 +122,6 @@ function Orders() {
     );
   }
 
-
-  // No orders
   if (orders.length === 0) {
     return (
       <div className="empty-cart">
@@ -99,18 +132,14 @@ function Orders() {
         </p>
 
         <Link to="/">
-          <button>
-            Start Shopping
-          </button>
+          <button>Start Shopping</button>
         </Link>
       </div>
     );
   }
 
-
   return (
     <div className="orders-page">
-
       <h1>Your Orders</h1>
 
       <p className="orders-count">
@@ -120,23 +149,16 @@ function Orders() {
           : "orders"}
       </p>
 
-
       <div className="orders-list">
-
         {orders.map((order) => (
-
           <div
             className="order-card"
             key={order._id}
           >
-
-            {/* Order Header */}
+            {/* ORDER HEADER */}
             <div className="order-header">
-
               <div>
-                <span>
-                  ORDER PLACED
-                </span>
+                <span>ORDER PLACED</span>
 
                 <strong>
                   {new Date(
@@ -152,22 +174,16 @@ function Orders() {
                 </strong>
               </div>
 
-
               <div>
-                <span>
-                  ORDER ID
-                </span>
+                <span>ORDER ID</span>
 
                 <strong>
                   {order.orderId}
                 </strong>
               </div>
 
-
               <div>
-                <span>
-                  TOTAL
-                </span>
+                <span>TOTAL</span>
 
                 <strong>
                   ₹
@@ -176,43 +192,41 @@ function Orders() {
                   )}
                 </strong>
               </div>
-
             </div>
 
-
-            {/* Order Status */}
+            {/* STATUS */}
             <div className="order-status">
-
-              <span className="status-badge">
-                ✓ {order.status}
+              <span
+                className={`status-badge ${
+                  order.status === "Cancelled"
+                    ? "cancelled"
+                    : ""
+                }`}
+              >
+                {order.status === "Cancelled"
+                  ? "✕ Cancelled"
+                  : "✓ Ordered"}
               </span>
 
               <span>
                 Payment:{" "}
                 {order.paymentMethod}
               </span>
-
             </div>
 
-
-            {/* Order Items */}
+            {/* ITEMS */}
             <div className="order-items">
-
               {order.items.map((item) => (
-
                 <div
                   className="order-item"
                   key={item.productId}
                 >
-
                   <img
                     src={item.image}
                     alt={item.title}
                   />
 
-
                   <div className="order-item-info">
-
                     <h3>
                       {item.title}
                     </h3>
@@ -231,19 +245,13 @@ function Orders() {
                         "en-IN"
                       )}
                     </strong>
-
                   </div>
-
                 </div>
-
               ))}
-
             </div>
 
-
-            {/* Delivery Address */}
+            {/* ADDRESS */}
             <div className="order-address">
-
               <strong>
                 Delivery Address
               </strong>
@@ -251,15 +259,41 @@ function Orders() {
               <p>
                 {order.address}
               </p>
-
             </div>
 
+            {/* ACTIONS */}
+            <div className="order-actions">
+              {order.status !==
+                "Cancelled" && (
+                <button
+                  className="cancel-order-btn"
+                  onClick={() =>
+                    handleCancelOrder(
+                      order.orderId
+                    )
+                  }
+                  disabled={
+                    cancellingId ===
+                    order.orderId
+                  }
+                >
+                  {cancellingId ===
+                  order.orderId
+                    ? "Cancelling..."
+                    : "Cancel Order"}
+                </button>
+              )}
+
+              {order.status ===
+                "Cancelled" && (
+                <span className="cancelled-message">
+                  This order has been cancelled.
+                </span>
+              )}
+            </div>
           </div>
-
         ))}
-
       </div>
-
     </div>
   );
 }
