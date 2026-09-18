@@ -19,7 +19,7 @@ function Orders() {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/orders",
+        "https://shopzone-wn90.onrender.com/api/orders",
         {
           headers: {
             Authorization: `Bearer ${token}`,

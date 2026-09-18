@@ -39,7 +39,7 @@ function Register() {
       setLoading(true);
 
       const response = await fetch(
-        "http://localhost:5000/api/auth/register",
+        "https://shopzone-wn90.onrender.com/api/auth/register",
         {
           method: "POST",
 

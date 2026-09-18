@@ -7,7 +7,7 @@ import {
 
 const CartContext = createContext();
 
-const API_URL = "http://localhost:5000";
+const API_URL = "https://shopzone-wn90.onrender.com";
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
