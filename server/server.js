@@ -170,6 +170,75 @@ res.json({
   }
 });
 
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
+    }
+
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      user.password
+    );
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        email: user.email,
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Login successful",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Login error:",
+      error.message
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to login",
+    });
+  }
+});
 
 
 // Cart API
@@ -728,6 +797,395 @@ app.put("/api/orders/cancel/:orderId", async (req, res) => {
   }
 });
 
+// =====================================================
+// REQUEST RETURN
+// =====================================================
+
+app.put(
+  "/api/orders/return/:orderId",
+  async (req, res) => {
+    try {
+      const token =
+        req.headers.authorization?.split(" ")[1];
+
+      if (!token) {
+        return res.status(401).json({
+          success: false,
+          message: "Please login first",
+        });
+      }
+
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET
+      );
+
+      const { reason } = req.body;
+
+      if (!reason || !reason.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Please provide a return reason",
+        });
+      }
+
+      const order = await Order.findOne({
+        orderId: req.params.orderId,
+        userId: decoded.userId,
+      });
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: "Order not found",
+        });
+      }
+
+      // Cancelled orders cannot be returned
+      if (order.status === "Cancelled") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Cancelled orders cannot be returned",
+        });
+      }
+
+      // Only delivered orders can be returned
+      if (order.status !== "Delivered") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Only delivered orders can be returned",
+        });
+      }
+
+      // Already requested
+      if (
+        order.returnStatus !==
+        "Not Requested"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Return has already been requested for this order",
+        });
+      }
+
+      order.returnStatus =
+        "Return Requested";
+
+      order.returnReason = reason.trim();
+
+      order.returnRequestedAt = new Date();
+
+      order.refundAmount = order.total;
+
+      await order.save();
+
+      res.json({
+        success: true,
+        message:
+          "Return request submitted successfully",
+        order,
+      });
+    } catch (error) {
+      console.error(
+        "Return request error:",
+        error.message
+      );
+
+      res.status(401).json({
+        success: false,
+        message:
+          "Invalid or expired token",
+      });
+    }
+  }
+);
+
+
+
+
+// =====================================================
+// MARK ORDER AS DELIVERED
+// =====================================================
+
+app.put(
+  "/api/orders/deliver/:orderId",
+  async (req, res) => {
+    try {
+      const token =
+        req.headers.authorization?.split(" ")[1];
+
+      if (!token) {
+        return res.status(401).json({
+          success: false,
+          message: "Please login first",
+        });
+      }
+
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET
+      );
+
+      const order = await Order.findOne({
+        orderId: req.params.orderId,
+        userId: decoded.userId,
+      });
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: "Order not found",
+        });
+      }
+
+      if (order.status === "Cancelled") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Cancelled orders cannot be delivered",
+        });
+      }
+
+      order.status = "Delivered";
+
+      await order.save();
+
+      res.json({
+        success: true,
+        message: "Order marked as delivered",
+        order,
+      });
+    } catch (error) {
+      console.error(
+        "Deliver order error:",
+        error.message
+      );
+
+      res.status(401).json({
+        success: false,
+        message: "Invalid or expired token",
+      });
+    }
+  }
+);
+
+
+
+app.post("/api/admin/create", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    const existingAdmin = await User.findOne({
+      email: email.toLowerCase(),
+    });
+
+    if (existingAdmin) {
+      return res.status(400).json({
+        success: false,
+        message: "User with this email already exists",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(
+      password,
+      10
+    );
+
+    const admin = await User.create({
+      name,
+      email: email.toLowerCase(),
+      password: hashedPassword,
+      role: "admin",
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Admin created successfully",
+      admin: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Create admin error:",
+      error.message
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to create admin",
+    });
+  }
+});
+
+const verifyAdmin = (req, res, next) => {
+  try {
+    const token =
+      req.headers.authorization?.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Please login first",
+      });
+    }
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
+    if (decoded.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Admin access required",
+      });
+    }
+
+    req.admin = decoded;
+
+    next();
+  } catch (error) {
+    console.error(
+      "Admin verification error:",
+      error.message
+    );
+
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token",
+    });
+  }
+};
+
+app.get(
+  "/api/admin/orders",
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const orders = await Order.find()
+        .sort({ createdAt: -1 });
+
+      res.json({
+        success: true,
+        orders,
+      });
+    } catch (error) {
+      console.error(
+        "Admin orders error:",
+        error.message
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Unable to fetch orders",
+      });
+    }
+  }
+);
+
+app.get(
+  "/api/admin/users",
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const users = await User.find()
+        .select("-password")
+        .sort({ createdAt: -1 });
+
+      res.json({
+        success: true,
+        users,
+      });
+    } catch (error) {
+      console.error(
+        "Admin users error:",
+        error.message
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Unable to fetch users",
+      });
+    }
+  }
+);
+
+app.get(
+  "/api/admin/test",
+  verifyAdmin,
+  async (req, res) => {
+    res.json({
+      success: true,
+      message: "Admin access verified",
+      admin: req.admin,
+    });
+  }
+);
+
+app.put("/api/admin/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and new password are required",
+      });
+    }
+
+    const user = await User.findOne({
+      email: email.toLowerCase(),
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin user not found",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(
+      newPassword,
+      10
+    );
+
+    user.password = hashedPassword;
+    user.role = "admin";
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Admin password reset successfully",
+      email: user.email,
+      role: user.role,
+    });
+  } catch (error) {
+    console.error(
+      "Reset admin password error:",
+      error.message
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to reset admin password",
+    });
+  }
+});
 
 // Start Server
 app.listen(PORT, "0.0.0.0", () => {
