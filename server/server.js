@@ -1486,6 +1486,7 @@ app.get(
 );
 
 // ADD REVIEW
+// ADD REVIEW
 app.post(
   "/api/reviews",
   verifyToken,
@@ -1495,6 +1496,7 @@ app.post(
         productId,
         rating,
         comment,
+        images,
       } = req.body;
 
       if (
@@ -1534,21 +1536,42 @@ app.post(
         });
       }
 
-      const review = await Review.create({
-        productId: Number(productId),
-        userId: user._id,
-        userName: user.name,
-        rating: numericRating,
-        comment: comment.trim(),
-        images: [],
-      });
+      const reviewImages =
+        Array.isArray(images)
+          ? images
+              .filter(
+                (image) =>
+                  typeof image === "string" &&
+                  image.trim() !== ""
+              )
+              .slice(0, 5)
+          : [];
+
+      const review =
+        await Review.create({
+          productId: Number(productId),
+
+          userId: user._id,
+
+          userName: user.name,
+
+          rating: numericRating,
+
+          comment: comment.trim(),
+
+          images: reviewImages,
+        });
 
       res.status(201).json({
         success: true,
-        message: "Review added successfully",
+        message:
+          "Review added successfully",
+
         review,
       });
+
     } catch (error) {
+
       console.error(
         "Add review error:",
         error
@@ -1560,10 +1583,10 @@ app.post(
           error.message ||
           "Unable to add review",
       });
+
     }
   }
 );
-
 
 // DELETE REVIEW
 app.delete(
