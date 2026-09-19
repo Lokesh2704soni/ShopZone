@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+
 import {
   Search,
   ShoppingCart,
@@ -8,6 +9,7 @@ import {
   X,
   LogOut,
   User,
+  Heart,
 } from "lucide-react";
 
 import {
@@ -16,12 +18,17 @@ import {
 } from "react-router-dom";
 
 import { useCart } from "../context/CartContext";
+import { useWishlist } from "../context/WishlistContext";
 
 function Navbar() {
   const {
     cartCount,
     clearCart,
   } = useCart();
+
+  const {
+  wishlistCount,
+} = useWishlist();
 
   const navigate = useNavigate();
 
@@ -266,6 +273,33 @@ function Navbar() {
         </Link>
 
 
+        <Link
+  to="/wishlist"
+  className="nav-wishlist"
+>
+
+  <div className="wishlist-nav-icon">
+
+    <Heart
+      size={25}
+      fill="currentColor"
+    />
+
+    {wishlistCount > 0 && (
+      <span>
+        {wishlistCount}
+      </span>
+    )}
+
+  </div>
+
+  <strong>
+    Wishlist
+  </strong>
+
+</Link>
+
+
         {/* CART */}
 
         <Link
@@ -409,6 +443,15 @@ function Navbar() {
           >
             🛒 Cart ({cartCount})
           </Link>
+
+          <Link
+  to="/wishlist"
+  onClick={() =>
+    setMenuOpen(false)
+  }
+>
+  ❤️ Wishlist ({wishlistCount})
+</Link>
 
 
           <span>

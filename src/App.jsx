@@ -6,6 +6,7 @@ import Orders from "./pages/Orders";
 import Footer from "./components/Footer";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminOrders from "./pages/AdminOrders";
+import Wishlist from "./pages/Wishlist";
 import {
   BrowserRouter,
   Routes,
@@ -201,6 +202,11 @@ function App() {
           path="/admin/orders"
           element={<AdminOrders />}
         />
+
+        <Route
+  path="/wishlist"
+  element={<Wishlist />}
+/>
 
         <Route
           path="/admin"

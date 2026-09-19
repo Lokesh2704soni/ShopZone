@@ -7,6 +7,7 @@ const User = require("./models/User");
 const Cart = require("./models/Cart");
 const Order = require("./models/Order");
 const Wishlist = require("./models/Wishlist");
+const Review = require("./models/Review");
 require("dotenv").config();
 
 const app = express();
@@ -1446,6 +1447,175 @@ app.delete(
   }
 );
 
+
+// ======================================
+// PRODUCT REVIEWS APIs
+// ======================================
+
+// GET REVIEWS FOR A PRODUCT
+app.get(
+  "/api/reviews/:productId",
+  async (req, res) => {
+    try {
+      const productId = Number(
+        req.params.productId
+      );
+
+      const reviews = await Review.find({
+        productId,
+      }).sort({
+        createdAt: -1,
+      });
+
+      res.json({
+        success: true,
+        reviews,
+      });
+    } catch (error) {
+      console.error(
+        "Get reviews error:",
+        error.message
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Unable to fetch reviews",
+      });
+    }
+  }
+);
+
+// ADD REVIEW
+app.post(
+  "/api/reviews",
+  verifyToken,
+  async (req, res) => {
+    try {
+      const {
+        productId,
+        rating,
+        comment,
+      } = req.body;
+
+      if (
+        productId === undefined ||
+        rating === undefined ||
+        !comment ||
+        !comment.trim()
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Product, rating and comment are required",
+        });
+      }
+
+      const numericRating = Number(rating);
+
+      if (
+        numericRating < 1 ||
+        numericRating > 5
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Rating must be between 1 and 5",
+        });
+      }
+
+      const user = await User.findById(
+        req.user.userId
+      );
+
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      const review = await Review.create({
+        productId: Number(productId),
+        userId: user._id,
+        userName: user.name,
+        rating: numericRating,
+        comment: comment.trim(),
+        images: [],
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Review added successfully",
+        review,
+      });
+    } catch (error) {
+      console.error(
+        "Add review error:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          error.message ||
+          "Unable to add review",
+      });
+    }
+  }
+);
+
+
+// DELETE REVIEW
+app.delete(
+  "/api/reviews/:reviewId",
+  verifyToken,
+  async (req, res) => {
+    try {
+      const review =
+        await Review.findById(
+          req.params.reviewId
+        );
+
+      if (!review) {
+        return res.status(404).json({
+          success: false,
+          message: "Review not found",
+        });
+      }
+
+      // Only review owner can delete it
+      if (
+        review.userId.toString() !==
+        req.user.userId.toString()
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You can only delete your own review",
+        });
+      }
+
+      await Review.findByIdAndDelete(
+        req.params.reviewId
+      );
+
+      res.json({
+        success: true,
+        message: "Review deleted successfully",
+      });
+    } catch (error) {
+      console.error(
+        "Delete review error:",
+        error.message
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Unable to delete review",
+      });
+    }
+  }
+);
 // Start Server
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`ShopZone server running on port ${PORT}`);
