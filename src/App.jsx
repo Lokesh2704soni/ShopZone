@@ -4,6 +4,8 @@ import Register from "./pages/Register";
 import Checkout from "./pages/Checkout";
 import Orders from "./pages/Orders";
 import Footer from "./components/Footer";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminOrders from "./pages/AdminOrders";
 import {
   BrowserRouter,
   Routes,
@@ -195,6 +197,15 @@ function App() {
           path="/"
           element={<Home />}
         />
+        <Route
+          path="/admin/orders"
+          element={<AdminOrders />}
+        />
+
+        <Route
+          path="/admin"
+          element={<AdminDashboard />}
+        />
 
 
         {/* Cart */}
@@ -226,9 +237,9 @@ function App() {
           element={<Checkout />}
         />
         <Route
-  path="/orders"
-  element={<Orders />}
-/>
+          path="/orders"
+          element={<Orders />}
+        />
       </Routes>
       <Footer />
 

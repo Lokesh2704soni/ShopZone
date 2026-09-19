@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 const User = require("./models/User");
 const Cart = require("./models/Cart");
 const Order = require("./models/Order");
+const Wishlist = require("./models/Wishlist");
 require("dotenv").config();
 
 const app = express();
@@ -1203,6 +1204,247 @@ app.put("/api/admin/reset-password", async (req, res) => {
     });
   }
 });
+
+// ======================================
+// VERIFY USER TOKEN
+// ======================================
+
+const verifyToken = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "Authorization token required",
+      });
+    }
+
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : authHeader;
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid authorization token",
+      });
+    }
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
+    req.user = decoded;
+
+    next();
+  } catch (error) {
+    console.error(
+      "Token verification error:",
+      error.message
+    );
+
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token",
+    });
+  }
+};
+
+
+// ======================================
+// WISHLIST APIs
+// ======================================
+
+// GET Wishlist
+app.get("/api/wishlist", verifyToken, async (req, res) => {
+  try {
+    let wishlist = await Wishlist.findOne({
+      userId: req.user.userId,
+    });
+
+    if (!wishlist) {
+      wishlist = await Wishlist.create({
+        userId: req.user.userId,
+        items: [],
+      });
+    }
+
+    res.json({
+      success: true,
+      wishlist: wishlist.items,
+    });
+  } catch (error) {
+    console.error("Get wishlist error:", error.message);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to fetch wishlist",
+    });
+  }
+});
+
+
+// ADD TO WISHLIST
+app.post("/api/wishlist/add", verifyToken, async (req, res) => {
+  try {
+    const {
+      productId,
+      title,
+      price,
+      oldPrice,
+      image,
+      category,
+      rating,
+      reviews,
+      discount,
+    } = req.body;
+
+    if (
+      productId === undefined ||
+      !title ||
+      price === undefined ||
+      oldPrice === undefined ||
+      !image ||
+      !category
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Product information is incomplete",
+      });
+    }
+
+    let wishlist = await Wishlist.findOne({
+      userId: req.user.userId,
+    });
+
+    if (!wishlist) {
+      wishlist = new Wishlist({
+        userId: req.user.userId,
+        items: [],
+      });
+    }
+
+    const alreadyExists = wishlist.items.some(
+      (item) => item.productId === Number(productId)
+    );
+
+    if (alreadyExists) {
+      return res.json({
+        success: true,
+        message: "Product already in wishlist",
+        wishlist: wishlist.items,
+      });
+    }
+
+    wishlist.items.push({
+      productId: Number(productId),
+      title,
+      price: Number(price),
+      oldPrice: Number(oldPrice),
+      image,
+      category,
+      rating: Number(rating || 0),
+      reviews: Number(reviews || 0),
+      discount: discount || "",
+    });
+
+    await wishlist.save();
+
+    res.json({
+      success: true,
+      message: "Product added to wishlist",
+      wishlist: wishlist.items,
+    });
+  } catch (error) {
+    console.error("Add wishlist error:", error.message);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to add product to wishlist",
+    });
+  }
+});
+
+
+// REMOVE FROM WISHLIST
+app.delete(
+  "/api/wishlist/remove/:productId",
+  verifyToken,
+  async (req, res) => {
+    try {
+      const productId = Number(req.params.productId);
+
+      const wishlist = await Wishlist.findOne({
+        userId: req.user.userId,
+      });
+
+      if (!wishlist) {
+        return res.json({
+          success: true,
+          wishlist: [],
+        });
+      }
+
+      wishlist.items = wishlist.items.filter(
+        (item) => item.productId !== productId
+      );
+
+      await wishlist.save();
+
+      res.json({
+        success: true,
+        message: "Product removed from wishlist",
+        wishlist: wishlist.items,
+      });
+    } catch (error) {
+      console.error(
+        "Remove wishlist error:",
+        error.message
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Unable to remove product from wishlist",
+      });
+    }
+  }
+);
+
+
+// CLEAR WISHLIST
+app.delete(
+  "/api/wishlist/clear",
+  verifyToken,
+  async (req, res) => {
+    try {
+      const wishlist = await Wishlist.findOne({
+        userId: req.user.userId,
+      });
+
+      if (wishlist) {
+        wishlist.items = [];
+        await wishlist.save();
+      }
+
+      res.json({
+        success: true,
+        message: "Wishlist cleared",
+      });
+    } catch (error) {
+      console.error(
+        "Clear wishlist error:",
+        error.message
+      );
+
+      res.status(500).json({
+        success: false,
+        message: "Unable to clear wishlist",
+      });
+    }
+  }
+);
 
 // Start Server
 app.listen(PORT, "0.0.0.0", () => {
