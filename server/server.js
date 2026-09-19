@@ -1061,6 +1061,86 @@ app.get(
   }
 );
 
+app.put(
+  "/api/admin/orders/:orderId/status",
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { status } = req.body;
+
+      const allowedStatuses = [
+        "Ordered",
+        "Shipped",
+        "Delivered",
+        "Cancelled",
+      ];
+
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid order status",
+        });
+      }
+
+      const order = await Order.findOne({
+        orderId: req.params.orderId,
+      });
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: "Order not found",
+        });
+      }
+
+      if (
+        order.status === "Cancelled" &&
+        status !== "Cancelled"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Cancelled order cannot be updated",
+        });
+      }
+
+      if (
+        order.returnStatus !==
+          "Not Requested" &&
+        status === "Cancelled"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Order with an active return request cannot be cancelled",
+        });
+      }
+
+      order.status = status;
+
+      await order.save();
+
+      res.json({
+        success: true,
+        message:
+          "Order status updated successfully",
+        order,
+      });
+    } catch (error) {
+      console.error(
+        "Admin status update error:",
+        error.message
+      );
+
+      res.status(500).json({
+        success: false,
+        message:
+          "Unable to update order status",
+      });
+    }
+  }
+);
+
 app.get(
   "/api/admin/test",
   verifyAdmin,
