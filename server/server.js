@@ -335,6 +335,65 @@ app.post("/api/auth/verify-otp", async (req, res) => {
 });
 
 
+app.post("/api/auth/resend-otp", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is already verified",
+      });
+    }
+
+    const otp = generateOTP();
+
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
+
+    await user.save();
+
+    await sendOTPEmail(
+      user.email,
+      user.name,
+      otp
+    );
+
+    res.json({
+      success: true,
+      message: "New OTP sent to your email.",
+    });
+
+  } catch (error) {
+    console.error("Resend OTP error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to resend OTP",
+    });
+  }
+});
+
 // Login User
 app.post("/api/auth/login", async (req, res) => {
   try {
