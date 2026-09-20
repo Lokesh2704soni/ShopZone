@@ -3,7 +3,6 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
 const User = require("./models/User");
 const Cart = require("./models/Cart");
 const Order = require("./models/Order");
@@ -13,106 +12,110 @@ require("dotenv").config();
 
 
 // ======================================
-// EMAIL CONFIGURATION
-// ======================================
-
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  family: 4,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-
-// ======================================
-// GENERATE OTP
-// ======================================
-
-const generateOTP = () => {
-  return Math.floor(
-    100000 + Math.random() * 900000
-  ).toString();
-};
-
-
-// ======================================
-// SEND OTP EMAIL
+// RESEND EMAIL CONFIGURATION
 // ======================================
 
 const sendOTPEmail = async (email, name, otp) => {
-  await transporter.sendMail({
-    from: `"ShopZone" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "ShopZone - Verify Your Email",
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
 
-    html: `
-      <div style="
-        font-family: Arial, sans-serif;
-        max-width: 600px;
-        margin: auto;
-        padding: 30px;
-        background: #f4f4f4;
-      ">
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      },
 
-        <div style="
-          background: white;
-          padding: 30px;
-          border-radius: 10px;
-          text-align: center;
-        ">
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM_EMAIL,
+        to: [email],
+        subject: "ShopZone - Verify Your Email",
 
-          <h1 style="color: #ff9900;">
-            Shop<span style="color: #111;">Zone</span>
-          </h1>
-
-          <h2>Verify Your Email</h2>
-
-          <p>
-            Hello <strong>${name}</strong>,
-          </p>
-
-          <p>
-            Thank you for creating your ShopZone account.
-            Please use the OTP below to verify your email.
-          </p>
-
+        html: `
           <div style="
-            font-size: 32px;
-            font-weight: bold;
-            letter-spacing: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            background: #f7f7f7;
-            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: auto;
+            padding: 30px;
+            background: #f4f4f4;
           ">
-            ${otp}
+
+            <div style="
+              background: white;
+              padding: 30px;
+              border-radius: 10px;
+              text-align: center;
+            ">
+
+              <h1 style="color: #ff9900;">
+                Shop<span style="color: #111;">Zone</span>
+              </h1>
+
+              <h2>Verify Your Email</h2>
+
+              <p>
+                Hello <strong>${name}</strong>,
+              </p>
+
+              <p>
+                Thank you for creating your ShopZone account.
+                Please use the OTP below to verify your email.
+              </p>
+
+              <div style="
+                font-size: 32px;
+                font-weight: bold;
+                letter-spacing: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                background: #f7f7f7;
+                border-radius: 8px;
+              ">
+                ${otp}
+              </div>
+
+              <p>
+                This OTP is valid for <strong>5 minutes</strong>.
+              </p>
+
+              <p style="color: #777;">
+                If you did not create a ShopZone account,
+                you can safely ignore this email.
+              </p>
+
+              <hr />
+
+              <p style="font-size: 12px; color: #999;">
+                © ${new Date().getFullYear()} ShopZone
+              </p>
+
+            </div>
+
           </div>
+        `,
+      }),
+    });
 
-          <p>
-            This OTP is valid for <strong>5 minutes</strong>.
-          </p>
+    const result = await response.json();
 
-          <p style="color: #777;">
-            If you did not create a ShopZone account,
-            you can safely ignore this email.
-          </p>
+    if (!response.ok) {
+      console.error("Resend API error:", result);
+      throw new Error(
+        result?.message ||
+        result?.error?.message ||
+        "Failed to send OTP email"
+      );
+    }
 
-          <hr />
+    console.log("OTP email sent successfully:", result.id);
 
-          <p style="font-size: 12px; color: #999;">
-            © ${new Date().getFullYear()} ShopZone
-          </p>
-
-        </div>
-
-      </div>
-    `,
-  });
+    return result;
+  } catch (error) {
+    console.error("OTP email error:", error);
+    throw error;
+  }
 };
+
+
 const app = express();
 
 const PORT = process.env.PORT || 5000;
