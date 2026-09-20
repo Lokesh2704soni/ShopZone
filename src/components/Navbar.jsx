@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 
-
 import {
   Search,
   ShoppingCart,
@@ -27,52 +26,123 @@ function Navbar() {
   } = useCart();
 
   const {
-  wishlistCount,
-} = useWishlist();
+    wishlistCount,
+  } = useWishlist();
 
   const navigate = useNavigate();
 
-  const [search, setSearch] =
-    useState("");
+  const [search, setSearch] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
 
-  const [menuOpen, setMenuOpen] =
-    useState(false);
+  // =========================
+  // LOCATION STATES
+  // =========================
 
-  const [user, setUser] =
-    useState(null);
+  const [location, setLocation] = useState(null);
+  const [locationOpen, setLocationOpen] = useState(false);
 
+  const [city, setCity] = useState("");
+  const [pincode, setPincode] = useState("");
 
-  // Check logged-in user
+  // =========================
+  // LOAD USER + LOCATION
+  // =========================
+
   useEffect(() => {
-    const storedUser =
-      localStorage.getItem(
-        "shopzoneUser"
-      );
+    // Logged-in user
+    const storedUser = localStorage.getItem("shopzoneUser");
 
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
       } catch (error) {
+        console.error("User data error:", error);
+        setUser(null);
+      }
+    }
+
+    // Saved location
+    const storedLocation =
+      localStorage.getItem("shopzoneLocation");
+
+    if (storedLocation) {
+      try {
+        const parsedLocation =
+          JSON.parse(storedLocation);
+
+        setLocation(parsedLocation);
+      } catch (error) {
         console.error(
-          "User data error:",
+          "Location data error:",
           error
         );
 
-        setUser(null);
+        setLocation(null);
       }
     }
   }, []);
 
+  // =========================
+  // OPEN LOCATION MODAL
+  // =========================
 
-  // Logout
+  const openLocation = () => {
+    if (location) {
+      setCity(location.city || "");
+      setPincode(location.pincode || "");
+    }
+
+    setLocationOpen(true);
+    setMenuOpen(false);
+  };
+
+  // =========================
+  // SAVE LOCATION
+  // =========================
+
+  const handleSaveLocation = (e) => {
+    e.preventDefault();
+
+    const cleanCity = city.trim();
+    const cleanPincode = pincode.trim();
+
+    if (!cleanCity) {
+      alert("Please enter your city.");
+      return;
+    }
+
+    if (!cleanPincode) {
+      alert("Please enter your PIN code.");
+      return;
+    }
+
+    if (!/^\d{6}$/.test(cleanPincode)) {
+      alert("Please enter a valid 6-digit PIN code.");
+      return;
+    }
+
+    const newLocation = {
+      city: cleanCity,
+      pincode: cleanPincode,
+    };
+
+    localStorage.setItem(
+      "shopzoneLocation",
+      JSON.stringify(newLocation)
+    );
+
+    setLocation(newLocation);
+    setLocationOpen(false);
+  };
+
+  // =========================
+  // LOGOUT
+  // =========================
+
   const handleLogout = async () => {
-    localStorage.removeItem(
-      "shopzoneUser"
-    );
-
-    localStorage.removeItem(
-      "shopzoneToken"
-    );
+    localStorage.removeItem("shopzoneUser");
+    localStorage.removeItem("shopzoneToken");
 
     await clearCart();
 
@@ -82,22 +152,21 @@ function Navbar() {
     navigate("/");
   };
 
+  // =========================
+  // SEARCH
+  // =========================
 
-  // Search
   const handleSearch = (e) => {
     e.preventDefault();
 
     if (search.trim()) {
       navigate(
-        `/?search=${encodeURIComponent(
-          search
-        )}`
+        `/?search=${encodeURIComponent(search)}`
       );
 
       setMenuOpen(false);
     }
   };
-
 
   return (
     <>
@@ -122,7 +191,6 @@ function Navbar() {
           )}
         </button>
 
-
         {/* LOGO */}
 
         <Link
@@ -135,11 +203,15 @@ function Navbar() {
           Shop<span>Zone</span>
         </Link>
 
+        {/* =========================
+            LOCATION
+        ========================= */}
 
-        {/* LOCATION */}
-
-        <div className="location">
-
+        <button
+          className="location"
+          onClick={openLocation}
+          type="button"
+        >
           <MapPin size={18} />
 
           <div>
@@ -148,12 +220,12 @@ function Navbar() {
             </small>
 
             <strong>
-              Jaipur 302001
+              {location
+                ? `${location.city} ${location.pincode}`
+                : "Set your location"}
             </strong>
           </div>
-
-        </div>
-
+        </button>
 
         {/* SEARCH */}
 
@@ -161,7 +233,6 @@ function Navbar() {
           className="search-container"
           onSubmit={handleSearch}
         >
-
           <select>
             <option>All</option>
 
@@ -182,7 +253,6 @@ function Navbar() {
             </option>
           </select>
 
-
           <input
             type="text"
             placeholder="Search ShopZone"
@@ -192,20 +262,16 @@ function Navbar() {
             }
           />
 
-
           <button type="submit">
             <Search size={22} />
           </button>
-
         </form>
-
 
         {/* =========================
             ACCOUNT
         ========================= */}
 
         {user ? (
-
           <div className="logged-account">
 
             <div className="user-avatar">
@@ -234,14 +300,11 @@ function Navbar() {
             </button>
 
           </div>
-
         ) : (
-
           <Link
             to="/login"
             className="nav-account"
           >
-
             <small>
               Hello, Sign in
             </small>
@@ -249,11 +312,8 @@ function Navbar() {
             <strong>
               Account & Lists
             </strong>
-
           </Link>
-
         )}
-
 
         {/* ORDERS */}
 
@@ -261,7 +321,6 @@ function Navbar() {
           to="/orders"
           className="nav-orders"
         >
-
           <small>
             Returns
           </small>
@@ -269,36 +328,33 @@ function Navbar() {
           <strong>
             & Orders
           </strong>
-
         </Link>
 
+        {/* WISHLIST */}
 
         <Link
-  to="/wishlist"
-  className="nav-wishlist"
->
+          to="/wishlist"
+          className="nav-wishlist"
+        >
+          <div className="wishlist-nav-icon">
 
-  <div className="wishlist-nav-icon">
+            <Heart
+              size={25}
+              fill="currentColor"
+            />
 
-    <Heart
-      size={25}
-      fill="currentColor"
-    />
+            {wishlistCount > 0 && (
+              <span>
+                {wishlistCount}
+              </span>
+            )}
 
-    {wishlistCount > 0 && (
-      <span>
-        {wishlistCount}
-      </span>
-    )}
+          </div>
 
-  </div>
-
-  <strong>
-    Wishlist
-  </strong>
-
-</Link>
-
+          <strong>
+            Wishlist
+          </strong>
+        </Link>
 
         {/* CART */}
 
@@ -306,7 +362,6 @@ function Navbar() {
           to="/cart"
           className="cart"
         >
-
           <div className="cart-icon">
 
             <ShoppingCart size={30} />
@@ -320,11 +375,9 @@ function Navbar() {
           <strong>
             Cart
           </strong>
-
         </Link>
 
       </header>
-
 
       {/* =========================
           DESKTOP SECOND NAVBAR
@@ -362,13 +415,11 @@ function Navbar() {
 
       </nav>
 
-
       {/* =========================
           MOBILE MENU
       ========================= */}
 
       {menuOpen && (
-
         <div className="mobile-menu">
 
           <Link
@@ -380,9 +431,19 @@ function Navbar() {
             🏠 Home
           </Link>
 
+          {/* MOBILE LOCATION */}
+
+          <button
+            className="mobile-location-btn"
+            onClick={openLocation}
+          >
+            📍{" "}
+            {location
+              ? `Deliver to ${location.city} ${location.pincode}`
+              : "Set your location"}
+          </button>
 
           {user ? (
-
             <>
               <div className="mobile-user">
 
@@ -410,9 +471,7 @@ function Navbar() {
                 Logout
               </button>
             </>
-
           ) : (
-
             <Link
               to="/login"
               onClick={() =>
@@ -421,9 +480,7 @@ function Navbar() {
             >
               👤 Account
             </Link>
-
           )}
-
 
           <Link
             to="/orders"
@@ -433,7 +490,6 @@ function Navbar() {
           >
             📦 Your Orders
           </Link>
-
 
           <Link
             to="/cart"
@@ -445,14 +501,13 @@ function Navbar() {
           </Link>
 
           <Link
-  to="/wishlist"
-  onClick={() =>
-    setMenuOpen(false)
-  }
->
-  ❤️ Wishlist ({wishlistCount})
-</Link>
-
+            to="/wishlist"
+            onClick={() =>
+              setMenuOpen(false)
+            }
+          >
+            ❤️ Wishlist ({wishlistCount})
+          </Link>
 
           <span>
             🔥 Today's Deals
@@ -467,9 +522,125 @@ function Navbar() {
           </span>
 
         </div>
-
       )}
 
+      {/* =========================
+          LOCATION MODAL
+      ========================= */}
+
+      {locationOpen && (
+        <div
+          className="location-overlay"
+          onClick={() =>
+            setLocationOpen(false)
+          }
+        >
+          <div
+            className="location-modal"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+
+            {/* MODAL HEADER */}
+
+            <div className="location-modal-header">
+
+              <div>
+                <h2>
+                  Choose your location
+                </h2>
+
+                <p>
+                  Enter your city and PIN code
+                  to set your delivery location.
+                </p>
+              </div>
+
+              <button
+                className="location-close"
+                onClick={() =>
+                  setLocationOpen(false)
+                }
+              >
+                <X size={22} />
+              </button>
+
+            </div>
+
+            {/* LOCATION FORM */}
+
+            <form
+              onSubmit={handleSaveLocation}
+              className="location-form"
+            >
+
+              <label>
+                City
+              </label>
+
+              <input
+                type="text"
+                placeholder="e.g. Jaipur"
+                value={city}
+                onChange={(e) =>
+                  setCity(e.target.value)
+                }
+              />
+
+              <label>
+                PIN Code
+              </label>
+
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength="6"
+                placeholder="e.g. 302001"
+                value={pincode}
+                onChange={(e) =>
+                  setPincode(
+                    e.target.value.replace(
+                      /\D/g,
+                      ""
+                    )
+                  )
+                }
+              />
+
+              <button
+                type="submit"
+                className="save-location-btn"
+              >
+                Save Location
+              </button>
+
+            </form>
+
+            {/* CURRENT LOCATION INFO */}
+
+            {location && (
+              <div className="current-location-info">
+
+                <MapPin size={18} />
+
+                <div>
+                  <small>
+                    Current saved location
+                  </small>
+
+                  <strong>
+                    {location.city},{" "}
+                    {location.pincode}
+                  </strong>
+                </div>
+
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
     </>
   );
 }

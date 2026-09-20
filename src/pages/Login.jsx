@@ -1,14 +1,25 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+const API_URL = "https://shopzone-wn90.onrender.com";
+
 function Login() {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  const [otp, setOtp] = useState("");
+  const [otpMode, setOtpMode] = useState(false);
+
   const [loading, setLoading] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+
   const [showPassword, setShowPassword] = useState(false);
 
+  // =========================
+  // LOGIN
+  // =========================
   const handleLogin = async (e) => {
     e.preventDefault();
 
@@ -21,7 +32,7 @@ function Login() {
       setLoading(true);
 
       const response = await fetch(
-        "https://shopzone-wn90.onrender.com/api/auth/login",
+        `${API_URL}/api/auth/login`,
         {
           method: "POST",
           headers: {
@@ -35,6 +46,16 @@ function Login() {
       );
 
       const data = await response.json();
+
+      // EMAIL NOT VERIFIED
+      if (response.status === 403 && data.requiresVerification) {
+        setOtpMode(true);
+        setOtp("");
+        alert(
+          "Your email is not verified. OTP has been sent to your email."
+        );
+        return;
+      }
 
       if (!response.ok) {
         alert(data.message || "Login failed");
@@ -62,6 +83,101 @@ function Login() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  // =========================
+  // SEND OTP
+  // =========================
+  const handleSendOTP = async () => {
+    if (!email) {
+      alert("Please enter your email address first.");
+      return;
+    }
+
+    try {
+      setOtpLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/api/auth/resend-otp`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Unable to send OTP");
+        return;
+      }
+
+      setOtpMode(true);
+      alert("OTP has been sent to your email 📧");
+    } catch (error) {
+      console.error("Send OTP error:", error);
+
+      alert(
+        "Unable to connect to server. Please try again."
+      );
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // =========================
+  // VERIFY OTP
+  // =========================
+  const handleVerifyOTP = async () => {
+    if (!otp || otp.length !== 6) {
+      alert("Please enter the 6-digit OTP.");
+      return;
+    }
+
+    try {
+      setOtpLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/api/auth/verify-otp`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            otp,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Invalid OTP");
+        return;
+      }
+
+      alert(
+        "Email verified successfully! 🎉 Please login now."
+      );
+
+      setOtp("");
+      setOtpMode(false);
+    } catch (error) {
+      console.error("Verify OTP error:", error);
+
+      alert(
+        "Unable to verify OTP. Please try again."
+      );
+    } finally {
+      setOtpLoading(false);
     }
   };
 
@@ -102,6 +218,7 @@ function Login() {
 
             <div className="shopping-bag">
               <div className="bag-handle"></div>
+
               <div className="bag-body">
                 <span>🛍️</span>
               </div>
@@ -109,6 +226,7 @@ function Login() {
 
             <div className="floating-card card-one">
               <span>✨</span>
+
               <div>
                 <strong>Great Deals</strong>
                 <small>Every day</small>
@@ -117,6 +235,7 @@ function Login() {
 
             <div className="floating-card card-two">
               <span>🚚</span>
+
               <div>
                 <strong>Fast Delivery</strong>
                 <small>At your doorstep</small>
@@ -146,120 +265,292 @@ function Login() {
           </div>
 
           <div className="form-heading">
-            <span className="welcome-icon">👋</span>
 
-            <h2>Welcome back</h2>
+            <span className="welcome-icon">
+              {otpMode ? "🔐" : "👋"}
+            </span>
+
+            <h2>
+              {otpMode
+                ? "Verify your email"
+                : "Welcome back"}
+            </h2>
 
             <p>
-              Sign in to continue your shopping journey.
+              {otpMode
+                ? "Enter the OTP sent to your email."
+                : "Sign in to continue your shopping journey."}
             </p>
+
           </div>
 
-          <form
-            className="modern-auth-form"
-            onSubmit={handleLogin}
-          >
+          {/* =========================
+              OTP SCREEN
+          ========================= */}
 
-            {/* EMAIL */}
-            <div className="modern-field">
+          {otpMode ? (
 
-              <label htmlFor="login-email">
-                Email address
-              </label>
+            <div className="modern-auth-form">
 
-              <div className="input-wrapper">
-                <span className="input-icon">
-                  @
-                </span>
+              {/* EMAIL */}
+              <div className="modern-field">
 
-                <input
-                  id="login-email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
-                  autoComplete="email"
-                />
-              </div>
-
-            </div>
-
-            {/* PASSWORD */}
-            <div className="modern-field">
-
-              <div className="field-top">
-                <label htmlFor="login-password">
-                  Password
+                <label htmlFor="login-email">
+                  Email address
                 </label>
 
-                <button
-                  type="button"
-                  className="forgot-btn"
-                  onClick={() =>
-                    alert(
-                      "Password reset feature coming soon."
-                    )
-                  }
-                >
-                  Forgot password?
-                </button>
-              </div>
+                <div className="input-wrapper">
 
-              <div className="input-wrapper">
+                  <span className="input-icon">
+                    @
+                  </span>
 
-                <span className="input-icon">
-                  •••
-                </span>
+                  <input
+                    id="login-email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) =>
+                      setEmail(e.target.value)
+                    }
+                    autoComplete="email"
+                  />
 
-                <input
-                  id="login-password"
-                  type={
-                    showPassword
-                      ? "text"
-                      : "password"
-                  }
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) =>
-                    setPassword(e.target.value)
-                  }
-                  autoComplete="current-password"
-                />
-
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() =>
-                    setShowPassword(!showPassword)
-                  }
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
+                </div>
 
               </div>
+
+              {/* OTP */}
+              <div className="modern-field">
+
+                <label htmlFor="login-otp">
+                  Enter OTP
+                </label>
+
+                <div className="input-wrapper">
+
+                  <span className="input-icon">
+                    #
+                  </span>
+
+                  <input
+                    id="login-otp"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength="6"
+                    placeholder="Enter 6-digit OTP"
+                    value={otp}
+                    onChange={(e) =>
+                      setOtp(
+                        e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 6)
+                      )
+                    }
+                  />
+
+                </div>
+
+              </div>
+
+              {/* VERIFY */}
+              <button
+                type="button"
+                className="modern-submit"
+                onClick={handleVerifyOTP}
+                disabled={otpLoading}
+              >
+                {otpLoading
+                  ? "Verifying..."
+                  : "Verify Email"}
+
+                {!otpLoading && (
+                  <span className="submit-arrow">
+                    →
+                  </span>
+                )}
+              </button>
+
+              {/* RESEND */}
+              <button
+                type="button"
+                className="modern-create"
+                onClick={handleSendOTP}
+                disabled={otpLoading}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  width: "100%",
+                }}
+              >
+                {otpLoading
+                  ? "Sending..."
+                  : "Resend OTP"}
+
+                <span>↻</span>
+              </button>
+
+              {/* BACK */}
+              <button
+                type="button"
+                onClick={() => {
+                  setOtpMode(false);
+                  setOtp("");
+                }}
+                style={{
+                  width: "100%",
+                  marginTop: "10px",
+                  padding: "12px",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px",
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
+              >
+                ← Back to Login
+              </button>
 
             </div>
 
-            {/* BUTTON */}
-            <button
-              className="modern-submit"
-              type="submit"
-              disabled={loading}
+          ) : (
+
+            /* =========================
+               LOGIN SCREEN
+               ========================= */
+
+            <form
+              className="modern-auth-form"
+              onSubmit={handleLogin}
             >
-              {loading
-                ? "Signing in..."
-                : "Continue to ShopZone"}
 
-              {!loading && (
-                <span className="submit-arrow">
-                  →
-                </span>
-              )}
-            </button>
+              {/* EMAIL */}
+              <div className="modern-field">
 
-          </form>
+                <label htmlFor="login-email">
+                  Email address
+                </label>
+
+                <div className="input-wrapper">
+
+                  <span className="input-icon">
+                    @
+                  </span>
+
+                  <input
+                    id="login-email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) =>
+                      setEmail(e.target.value)
+                    }
+                    autoComplete="email"
+                  />
+
+                </div>
+
+              </div>
+
+              {/* PASSWORD */}
+              <div className="modern-field">
+
+                <div className="field-top">
+
+                  <label htmlFor="login-password">
+                    Password
+                  </label>
+
+                  <button
+                    type="button"
+                    className="forgot-btn"
+                    onClick={() =>
+                      alert(
+                        "Password reset feature coming soon."
+                      )
+                    }
+                  >
+                    Forgot password?
+                  </button>
+
+                </div>
+
+                <div className="input-wrapper">
+
+                  <span className="input-icon">
+                    •••
+                  </span>
+
+                  <input
+                    id="login-password"
+                    type={
+                      showPassword
+                        ? "text"
+                        : "password"
+                    }
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) =>
+                      setPassword(e.target.value)
+                    }
+                    autoComplete="current-password"
+                  />
+
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() =>
+                      setShowPassword(!showPassword)
+                    }
+                  >
+                    {showPassword
+                      ? "Hide"
+                      : "Show"}
+                  </button>
+
+                </div>
+
+              </div>
+
+              {/* LOGIN BUTTON */}
+              <button
+                className="modern-submit"
+                type="submit"
+                disabled={loading}
+              >
+                {loading
+                  ? "Signing in..."
+                  : "Continue to ShopZone"}
+
+                {!loading && (
+                  <span className="submit-arrow">
+                    →
+                  </span>
+                )}
+              </button>
+
+              {/* VERIFY EMAIL MANUALLY */}
+              <button
+                type="button"
+                onClick={handleSendOTP}
+                disabled={otpLoading}
+                style={{
+                  width: "100%",
+                  marginTop: "12px",
+                  padding: "12px",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px",
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
+              >
+                {otpLoading
+                  ? "Sending OTP..."
+                  : "Verify Email with OTP"}
+              </button>
+
+            </form>
+          )}
 
           <div className="modern-divider">
             <span>New to ShopZone?</span>
