@@ -21,25 +21,6 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
-    // =========================
-    // EMAIL VERIFICATION
-    // =========================
-
-    isVerified: {
-      type: Boolean,
-      default: false,
-    },
-
-    otp: {
-      type: String,
-      default: null,
-    },
-
-    otpExpires: {
-      type: Date,
-      default: null,
-    },
-
     role: {
       type: String,
       enum: ["user", "admin"],

@@ -11,120 +11,6 @@ const Review = require("./models/Review");
 require("dotenv").config();
 
 
-// ======================================
-// RESEND EMAIL CONFIGURATION
-// ======================================
-
-const sendOTPEmail = async (email, name, otp) => {
-  try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      },
-
-      body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL,
-        to: [email],
-        subject: "ShopZone - Verify Your Email",
-
-        html: `
-          <div style="
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: auto;
-            padding: 30px;
-            background: #f4f4f4;
-          ">
-
-            <div style="
-              background: white;
-              padding: 30px;
-              border-radius: 10px;
-              text-align: center;
-            ">
-
-              <h1 style="color: #ff9900;">
-                Shop<span style="color: #111;">Zone</span>
-              </h1>
-
-              <h2>Verify Your Email</h2>
-
-              <p>
-                Hello <strong>${name}</strong>,
-              </p>
-
-              <p>
-                Thank you for creating your ShopZone account.
-                Please use the OTP below to verify your email.
-              </p>
-
-              <div style="
-                font-size: 32px;
-                font-weight: bold;
-                letter-spacing: 8px;
-                padding: 20px;
-                margin: 20px 0;
-                background: #f7f7f7;
-                border-radius: 8px;
-              ">
-                ${otp}
-              </div>
-
-              <p>
-                This OTP is valid for <strong>5 minutes</strong>.
-              </p>
-
-              <p style="color: #777;">
-                If you did not create a ShopZone account,
-                you can safely ignore this email.
-              </p>
-
-              <hr />
-
-              <p style="font-size: 12px; color: #999;">
-                © ${new Date().getFullYear()} ShopZone
-              </p>
-
-            </div>
-
-          </div>
-        `,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error("Resend API error:", result);
-      throw new Error(
-        result?.message ||
-        result?.error?.message ||
-        "Failed to send OTP email"
-      );
-    }
-
-    console.log("OTP email sent successfully:", result.id);
-
-    return result;
-  } catch (error) {
-    console.error("OTP email error:", error);
-    throw error;
-  }
-};
-
-
-// ======================================
-// GENERATE OTP
-// ======================================
-
-const generateOTP = () => {
-  return Math.floor(
-    100000 + Math.random() * 900000
-  ).toString();
-};
 
 
 const app = express();
@@ -163,7 +49,53 @@ app.get("/api/test", (req, res) => {
 
 
 // ======================================
-// REGISTER USER + SEND OTP
+// CHECK EMAIL AVAILABILITY
+// ======================================
+
+app.get("/api/auth/check-email", async (req, res) => {
+  try {
+    const email = req.query.email?.toLowerCase().trim();
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address",
+      });
+    }
+
+    const existingUser = await User.findOne({
+      email,
+    });
+
+    res.json({
+      success: true,
+      available: !existingUser,
+      message: existingUser
+        ? "Email is already registered"
+        : "Email is available",
+    });
+  } catch (error) {
+    console.error("Check email error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to check email",
+    });
+  }
+});
+
+
+// ======================================
+// REGISTER USER
 // ======================================
 
 app.post("/api/auth/register", async (req, res) => {
@@ -186,72 +118,44 @@ app.post("/api/auth/register", async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address",
+      });
+    }
+
     const existingUser = await User.findOne({
       email: normalizedEmail,
     });
 
     if (existingUser) {
-      if (!existingUser.isVerified) {
-        const otp = generateOTP();
-
-        existingUser.otp = otp;
-        existingUser.otpExpires =
-          new Date(Date.now() + 5 * 60 * 1000);
-
-        await existingUser.save();
-
-        await sendOTPEmail(
-          existingUser.email,
-          existingUser.name,
-          otp
-        );
-
-        return res.json({
-          success: true,
-          message: "OTP sent to your email.",
-          requiresVerification: true,
-          email: existingUser.email,
-        });
-      }
-
       return res.status(409).json({
         success: false,
-        message: "User already exists",
+        message: "Email is already registered. Please login.",
       });
     }
 
-    const hashedPassword = await bcrypt.hash(
-      password,
-      10
-    );
-
-    const otp = generateOTP();
-
-    const otpExpires =
-      new Date(Date.now() + 5 * 60 * 1000);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
-      name,
+      name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
-      isVerified: false,
-      otp,
-      otpExpires,
     });
-
-    await sendOTPEmail(
-      user.email,
-      user.name,
-      otp
-    );
 
     res.status(201).json({
       success: true,
-      message: "Account created. OTP sent to your email.",
-      requiresVerification: true,
-      email: user.email,
+      message: "Account created successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
-
   } catch (error) {
     console.error("Registration error:", error);
 
@@ -263,152 +167,7 @@ app.post("/api/auth/register", async (req, res) => {
 });
 
 
-// ======================================
-// VERIFY EMAIL OTP
-// ======================================
 
-app.post("/api/auth/verify-otp", async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-
-    // Check fields
-    if (!email || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and OTP are required",
-      });
-    }
-
-    const normalizedEmail =
-      email.toLowerCase().trim();
-
-    // Find user
-    const user = await User.findOne({
-      email: normalizedEmail,
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // Already verified
-    if (user.isVerified) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is already verified",
-      });
-    }
-
-    // Check OTP expiry
-    if (
-      !user.otpExpires ||
-      user.otpExpires < new Date()
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "OTP has expired. Please request a new OTP.",
-      });
-    }
-
-    // Check OTP
-    if (user.otp !== otp.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP",
-      });
-    }
-
-    // Verify email
-    user.isVerified = true;
-
-    // Remove OTP
-    user.otp = null;
-    user.otpExpires = null;
-
-    await user.save();
-
-    res.json({
-      success: true,
-      message:
-        "Email verified successfully. You can now login.",
-    });
-
-  } catch (error) {
-    console.error(
-      "OTP verification error:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message: "Unable to verify OTP",
-    });
-  }
-});
-
-
-app.post("/api/auth/resend-otp", async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is required",
-      });
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
-
-    const user = await User.findOne({
-      email: normalizedEmail,
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (user.isVerified) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is already verified",
-      });
-    }
-
-    const otp = generateOTP();
-
-    user.otp = otp;
-    user.otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-
-    await user.save();
-
-    await sendOTPEmail(
-      user.email,
-      user.name,
-      otp
-    );
-
-    res.json({
-      success: true,
-      message: "New OTP sent to your email.",
-    });
-
-  } catch (error) {
-    console.error("Resend OTP error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Unable to resend OTP",
-    });
-  }
-});
 
 // Login User
 app.post("/api/auth/login", async (req, res) => {
@@ -447,16 +206,6 @@ app.post("/api/auth/login", async (req, res) => {
       });
     }
 
-    // Email verification check
-    // Admin users are allowed to login without OTP
-    if (!user.isVerified && user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        message: "Please verify your email with OTP before logging in.",
-        requiresVerification: true,
-        email: user.email,
-      });
-    }
 
     const token = jwt.sign(
       {

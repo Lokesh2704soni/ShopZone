@@ -1,25 +1,101 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+const API_URL = "https://shopzone-wn90.onrender.com";
+
 function Register() {
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] =
-    useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [emailStatus, setEmailStatus] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+
+  // =========================
+  // CHECK EMAIL AVAILABILITY
+  // =========================
+
+  const checkEmailAvailability = async () => {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (!normalizedEmail) {
+      setEmailStatus("invalid");
+      setEmailMessage("Please enter your email address.");
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(normalizedEmail)) {
+      setEmailStatus("invalid");
+      setEmailMessage("Please enter a valid email address.");
+      return false;
+    }
+
+    try {
+      setCheckingEmail(true);
+      setEmailStatus("checking");
+      setEmailMessage("Checking email...");
+
+      const response = await fetch(
+        `${API_URL}/api/auth/check-email?email=${encodeURIComponent(
+          normalizedEmail
+        )}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setEmailStatus("error");
+        setEmailMessage(
+          data.message || "Unable to check email."
+        );
+        return false;
+      }
+
+      if (data.available) {
+        setEmailStatus("available");
+        setEmailMessage("✅ Email is available");
+        return true;
+      }
+
+      setEmailStatus("taken");
+      setEmailMessage(
+        "❌ Email is already registered. Please login."
+      );
+      return false;
+    } catch (error) {
+      console.error("Check email error:", error);
+
+      setEmailStatus("error");
+      setEmailMessage(
+        "Unable to check email. Please try again."
+      );
+
+      return false;
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
+
+  // =========================
+  // REGISTER
+  // =========================
 
   const handleRegister = async (e) => {
     e.preventDefault();
 
     if (
-      !name ||
-      !email ||
+      !name.trim() ||
+      !email.trim() ||
       !password ||
       !confirmPassword
     ) {
@@ -28,9 +104,7 @@ function Register() {
     }
 
     if (password.length < 6) {
-      alert(
-        "Password must be at least 6 characters"
-      );
+      alert("Password must be at least 6 characters");
       return;
     }
 
@@ -39,11 +113,18 @@ function Register() {
       return;
     }
 
+    // Check email before registration
+    const isEmailAvailable = await checkEmailAvailability();
+
+    if (!isEmailAvailable) {
+      return;
+    }
+
     try {
       setLoading(true);
 
       const response = await fetch(
-        "https://shopzone-wn90.onrender.com/api/auth/register",
+        `${API_URL}/api/auth/register`,
         {
           method: "POST",
 
@@ -52,8 +133,8 @@ function Register() {
           },
 
           body: JSON.stringify({
-            name,
-            email,
+            name: name.trim(),
+            email: email.toLowerCase().trim(),
             password,
           }),
         }
@@ -81,7 +162,7 @@ function Register() {
       );
 
       alert(
-        "Unable to connect to server. Make sure backend is running."
+        "Unable to connect to server. Please try again."
       );
     } finally {
       setLoading(false);
@@ -168,6 +249,7 @@ function Register() {
 
         <div className="modern-auth-card register-card">
 
+          {/* MOBILE LOGO */}
           <div className="mobile-logo">
             <Link
               to="/"
@@ -177,13 +259,16 @@ function Register() {
             </Link>
           </div>
 
+          {/* HEADING */}
           <div className="form-heading">
 
             <span className="welcome-icon">
               ✨
             </span>
 
-            <h2>Create your account</h2>
+            <h2>
+              Create your account
+            </h2>
 
             <p>
               Join ShopZone and start shopping smarter.
@@ -242,13 +327,60 @@ function Register() {
                   type="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailStatus("");
+                    setEmailMessage("");
+                  }}
                   autoComplete="email"
                 />
 
+                <button
+                  type="button"
+                  onClick={checkEmailAvailability}
+                  disabled={checkingEmail || !email}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    color:
+                      checkingEmail
+                        ? "#888"
+                        : "#ff9900",
+                    fontWeight: "600",
+                    cursor:
+                      checkingEmail || !email
+                        ? "not-allowed"
+                        : "pointer",
+                    padding: "0 10px",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {checkingEmail
+                    ? "Checking..."
+                    : "Check"}
+                </button>
+
               </div>
+
+              {/* EMAIL STATUS */}
+              {emailMessage && (
+                <p
+                  style={{
+                    marginTop: "7px",
+                    marginBottom: "0",
+                    fontSize: "13px",
+                    color:
+                      emailStatus === "available"
+                        ? "#159447"
+                        : emailStatus === "taken" ||
+                          emailStatus === "invalid"
+                        ? "#d93025"
+                        : "#777",
+                  }}
+                >
+                  {emailMessage}
+                </p>
+              )}
 
             </div>
 
@@ -334,6 +466,7 @@ function Register() {
               type="submit"
               disabled={loading}
             >
+
               {loading
                 ? "Creating account..."
                 : "Create ShopZone account"}
@@ -343,10 +476,12 @@ function Register() {
                   →
                 </span>
               )}
+
             </button>
 
           </form>
 
+          {/* LOGIN LINK */}
           <div className="modern-divider">
             <span>
               Already have an account?
@@ -361,6 +496,7 @@ function Register() {
             <span>→</span>
           </Link>
 
+          {/* TERMS */}
           <p className="modern-terms">
             By creating an account, you agree to
             ShopZone's{" "}
