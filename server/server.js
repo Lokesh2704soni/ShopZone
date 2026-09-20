@@ -116,6 +116,17 @@ const sendOTPEmail = async (email, name, otp) => {
 };
 
 
+// ======================================
+// GENERATE OTP
+// ======================================
+
+const generateOTP = () => {
+  return Math.floor(
+    100000 + Math.random() * 900000
+  ).toString();
+};
+
+
 const app = express();
 
 const PORT = process.env.PORT || 5000;
